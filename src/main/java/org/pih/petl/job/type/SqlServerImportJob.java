@@ -20,6 +20,7 @@ import org.pih.petl.job.datasource.EtlDataSource;
 import org.pih.petl.job.datasource.SqlStatementParser;
 
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -137,14 +138,19 @@ public class SqlServerImportJob implements PetlJob {
                         log.debug("Executing: " + sqlStatement);
                         StopWatch sw = new StopWatch();
                         sw.start();
-                        statement = sourceConnection.createStatement();
-                        statement.execute(sqlStatement);
-                        log.debug("Statement executed");
-                        if (!sqlIterator.hasNext()) {
+                        if (sqlIterator.hasNext()) {
+                            statement = sourceConnection.createStatement();
+                            statement.execute(sqlStatement);
+                            log.debug("Statement executed");
+                        }
+                        else {
                             log.debug("This is the last statement, treat it as the extraction query");
+                            statement = sourceConnection.prepareStatement(
+                                    sqlStatement, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY
+                            );
                             ResultSet resultSet = null;
                             try {
-                                resultSet = statement.getResultSet();
+                                resultSet = ((PreparedStatement)statement).executeQuery();
                                 if (resultSet != null) {
                                     // Skip to the end to get the number of rows that ResultSet contains
                                     resultSet.last();

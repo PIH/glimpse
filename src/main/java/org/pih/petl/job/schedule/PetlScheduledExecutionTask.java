@@ -1,8 +1,6 @@
 package org.pih.petl.job.schedule;
 
-import java.util.Date;
-import java.util.Map;
-
+import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.pih.petl.api.EtlService;
@@ -14,6 +12,9 @@ import org.quartz.JobExecutionContext;
 import org.quartz.JobExecutionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+
+import java.util.Date;
+import java.util.Map;
 
 /**
  * Schedulable task for loading all of the configurations
@@ -49,20 +50,21 @@ public class PetlScheduledExecutionTask implements Job {
                 log.debug("Found " + jobs.size() + " configured Jobs");
                 for (String jobPath : jobs.keySet()) {
                     log.debug("Checking job: " + jobPath);
-                    JobExecution latestExecution = etlService.getLatestJobExecution(jobPath);
-                    if (latestExecution == null) {
-                        log.info("Job: " + jobPath + " - Executing for the first time.");
-                        etlService.executeJob(jobPath);
-                    }
-                    else {
-                        Date lastStartDate = latestExecution.getStarted();
-                        log.debug("Last Execution Start: " + lastStartDate);
-                        Date lastEndDate = latestExecution.getCompleted();
-                        log.debug("Last Execution End: " + lastEndDate);
-                        if (lastEndDate != null) {
-                            PetlJobConfig jobConfig = jobs.get(jobPath);
-                            Schedule schedule = jobConfig.getSchedule();
-                            if (schedule != null) {
+                    PetlJobConfig jobConfig = jobs.get(jobPath);
+                    Schedule schedule = jobConfig.getSchedule();
+                    boolean isScheduled = schedule != null && StringUtils.isNotBlank(schedule.getCron());
+                    if (isScheduled) {
+                        JobExecution latestExecution = etlService.getLatestJobExecution(jobPath);
+                        if (latestExecution == null) {
+                            log.info("Job: " + jobPath + " - Executing for the first time.");
+                            etlService.executeJob(jobPath);
+                        }
+                        else {
+                            Date lastStartDate = latestExecution.getStarted();
+                            log.debug("Last Execution Start: " + lastStartDate);
+                            Date lastEndDate = latestExecution.getCompleted();
+                            log.debug("Last Execution End: " + lastEndDate);
+                            if (lastEndDate != null) {
                                 log.debug("Schedule found: " + schedule);
                                 CronExpression cronExpression = new CronExpression(schedule.getCron());
                                 Date nextScheduledDate = cronExpression.getNextValidTimeAfter(lastStartDate);
@@ -79,12 +81,12 @@ public class PetlScheduledExecutionTask implements Job {
                                 }
                             }
                             else {
-                                log.debug("Job has no schedule associated with it, not executing.");
+                                log.debug("Latest execution is still in progress, not running again in parallel");
                             }
                         }
-                        else {
-                            log.debug("Latest execution is still in progress, not running again in parallel");
-                        }
+                    }
+                    else {
+                        log.debug("Job has no scheduled associated with it, not executing.");
                     }
                 }
             }

@@ -33,6 +33,7 @@ public class PentahoJob implements PetlJob {
 
     public static final String JOB_FILE_PATH = "job.filePath";
     public static final String JOB_LOG_LEVEL = "job.logLevel";
+    public static final String PIH_PENTAHO_HOME = "pih.pentahoHome";
 
     /**
      * Creates a new instance of the job
@@ -50,14 +51,12 @@ public class PentahoJob implements PetlJob {
         PetlJobConfig jobConfig = context.getJobConfig();
         Properties configuration = jobConfig.getAsProperties();
 
-        // TODO: Add validation in
         String jobFilePath = configuration.getProperty(JOB_FILE_PATH);
         log.debug("PetlJob file path: " + jobFilePath);
         File jobFile = appConfig.getConfigFile(jobFilePath).getConfigFile();
 
         /*
         First, we want to create an execution environment for this job to set up Kettle with appropriate properties
-        TODO:  Consider removing this in later phases, but we will need to change the pipeline code accordingly.
         We create a subdirectory under work/{{jobId}}/.kettle, and set KETTLE_HOME to point to this.
         This gives us somewhere for this execution, where we can write kettle.properties and pih-kettle.properties,
         so that the pipeline can find and use these as currently designed.
@@ -68,10 +67,10 @@ public class PentahoJob implements PetlJob {
         System.setProperty("KETTLE_HOME", jobDir.getAbsolutePath());
 
         try {
-            // Configure kettle.properties with PIH_PENTAHO_HOME which we aquire from the configuration
-            File srcDir = appConfig.getPetlHomeDir();
+            // Configure kettle.properties with PIH_PENTAHO_HOME which we acquire from the configuration
+            File srcDir = new File(configuration.getProperty(PIH_PENTAHO_HOME, jobFile.getParent()));
             if (!srcDir.exists()) {
-                throw new PetlException("Unable to initialize kettle environemnt.  Unable to find: " + srcDir);
+                throw new PetlException("Unable to initialize kettle environment.  Unable to find: " + srcDir);
             }
             try {
                 Properties kettleProperties = new Properties();
@@ -87,6 +86,7 @@ public class PentahoJob implements PetlJob {
             try {
                 log.debug("Initializing Kettle Environment");
                 log.debug("KETTLE_HOME = " + System.getProperty("KETTLE_HOME"));
+                System.setProperty("KETTLE_PLUGIN_CLASSES", "org.pentaho.di.trans.steps.append.AppendMeta");
                 KettleEnvironment.init();
             }
             catch (KettleException e) {
@@ -118,7 +118,7 @@ public class PentahoJob implements PetlJob {
 
             JobMeta jobMeta = new JobMeta(jobFile.getAbsolutePath(), null);
 
-            log.debug("PetlJob parameters: ");
+            log.debug("Petl Job parameters: ");
             String[] declaredParameters = jobMeta.listParameters();
             for (int i = 0; i < declaredParameters.length; i++) {
                 String parameterName = declaredParameters[i];
